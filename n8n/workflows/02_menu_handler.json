@@ -1,0 +1,192 @@
+{
+  "name": "02 - Menu Handler (Gestor de Menú)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-menu",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "user_sessions",
+        "columns": [
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "state",
+            "value": "main_menu"
+          },
+          {
+            "column": "context",
+            "value": "{}"
+          }
+        ]
+      },
+      "id": "update-session",
+      "name": "Update User Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "¡Hola! 👋 Bienvenido a **Lotería XYZ**.\n\n¿Qué te gustaría hacer?\n\n🎫 **Consultar número de billete**\nSimplemente envíame el número que te interesa\n\n📋 **Ver información**\nEscribe palabras como: horarios, dirección, precios\n\n❓ **Ayuda**\nEscribe \"ayuda\" para más opciones\n\n---\n💡 *Tip: Puedes escribir \"menú\" en cualquier momento para volver aquí*"
+      },
+      "id": "send-menu-message",
+      "name": "Send Menu Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "system_logs",
+        "columns": [
+          {
+            "column": "level",
+            "value": "info"
+          },
+          {
+            "column": "message",
+            "value": "Menú principal mostrado al usuario"
+          },
+          {
+            "column": "context",
+            "value": "={{ JSON.stringify({\n  \"user_phone\": $json.userPhone,\n  \"user_name\": $json.userName || 'Unknown',\n  \"action\": \"show_main_menu\"\n}) }}"
+          },
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "workflow_id",
+            "value": "menu_handler"
+          }
+        ]
+      },
+      "id": "log-menu-shown",
+      "name": "Log Menu Shown",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [900, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "success",
+              "value": "true"
+            },
+            {
+              "name": "action",
+              "value": "menu_displayed"
+            },
+            {
+              "name": "next_state",
+              "value": "main_menu"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "return-success",
+      "name": "Return Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Update User Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update User Session": {
+      "main": [
+        [
+          {
+            "node": "Send Menu Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Menu Message": {
+      "main": [
+        [
+          {
+            "node": "Log Menu Shown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Menu Shown": {
+      "main": [
+        [
+          {
+            "node": "Return Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "02_menu_handler",
+  "tags": [
+    {
+      "createdAt": "2025-09-11T22:00:00.000Z",
+      "updatedAt": "2025-09-11T22:00:00.000Z",
+      "id": "main-workflows",
+      "name": "Main Workflows"
+    }
+  ]
+}
+

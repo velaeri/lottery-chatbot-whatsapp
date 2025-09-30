@@ -1,0 +1,426 @@
+{
+  "name": "Main Chat Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat",
+        "responseMode": "responseNode",
+        "options": {
+          "cors": {
+            "allowedOrigins": "*"
+          }
+        }
+      },
+      "id": "webhook-chat",
+      "name": "Webhook Chat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "chat-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.message}}",
+              "operation": "regex",
+              "value2": "^\\d{4,5}$"
+            }
+          ]
+        }
+      },
+      "id": "is-ticket-number",
+      "name": "Is Ticket Number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.message.toLowerCase()}}",
+              "operation": "contains",
+              "value2": "sí"
+            },
+            {
+              "value1": "={{$json.body.message.toLowerCase()}}",
+              "operation": "contains",
+              "value2": "si"
+            },
+            {
+              "value1": "={{$json.body.message.toLowerCase()}}",
+              "operation": "contains",
+              "value2": "confirmo"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "is-confirmation",
+      "name": "Is Confirmation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.message.toLowerCase()}}",
+              "operation": "contains",
+              "value2": "no"
+            },
+            {
+              "value1": "={{$json.body.message.toLowerCase()}}",
+              "operation": "contains",
+              "value2": "cancelar"
+            }
+          ]
+        },
+        "combineOperation": "any"
+      },
+      "id": "is-cancellation",
+      "name": "Is Cancellation?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 700]
+    },
+    {
+      "parameters": {
+        "url": "https://zgttgbdbujrzduqekfmp.supabase.co/rest/v1/lottery_tickets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticket_number",
+              "value": "eq.={{$json.body.message}}"
+            },
+            {
+              "name": "select",
+              "value": "*"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "query-ticket",
+      "name": "Query Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-auth",
+          "name": "Supabase Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.length}}",
+              "operation": "equal",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "ticket-exists",
+      "name": "Ticket Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres un asistente virtual de 'Lotería El Trébol', una tienda de billetes de lotería en España. Información: Horario L-V 9:00-18:00, S 9:00-14:00. Ubicación: Calle Principal 123, Madrid. Sorteos: Sábados 20:00. Suscripción abonados: 20€ anuales. Usuario: {{$json.body.isSubscriber ? 'Abonado' : 'Regular'}}. Sé amigable, usa emojis, mantén respuestas concisas.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{$json.body.message}}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 500\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "deepseek-general",
+      "name": "DeepSeek General",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 900],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "deepseek-auth",
+          "name": "DeepSeek Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres un asistente de lotería. Reformula esta respuesta técnica de manera natural y conversacional: {{$json.businessLogic}}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Usuario escribió: {{$json.body.message}}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 500\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "deepseek-ticket",
+      "name": "DeepSeek Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "deepseek-auth",
+          "name": "DeepSeek Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar respuesta de billete\nconst ticket = $input.all()[0].json[0];\nconst userData = $input.all()[1].json.body;\n\nif (!ticket) {\n  return {\n    businessLogic: `❌ Lo siento, el billete ${userData.message} no existe en nuestro sistema. Prueba con números como: 10000, 10090, 10115, 10190, etc. ¿Te gustaría consultar otro número?`,\n    body: userData\n  };\n}\n\nif (ticket.status === 'sold') {\n  return {\n    businessLogic: `❌ El billete ${ticket.ticket_number} ya ha sido vendido. ¿Te gustaría consultar otro número disponible?`,\n    body: userData\n  };\n}\n\nif (ticket.status === 'reserved') {\n  return {\n    businessLogic: `⏳ El billete ${ticket.ticket_number} está temporalmente reservado. ¿Te gustaría consultar otro número?`,\n    body: userData\n  };\n}\n\n// Verificar acceso a billetes exclusivos\nif (ticket.is_exclusive && !userData.isSubscriber) {\n  return {\n    businessLogic: `🔒 El billete ${ticket.ticket_number} es exclusivo para abonados. Precio: ${ticket.price}€. Para ser abonado, visita nuestra oficina con tu DNI. La suscripción cuesta 20€ anuales. ¿Te gustaría consultar billetes regulares disponibles?`,\n    body: userData\n  };\n}\n\n// Billete disponible\n// TODO: Guardar sesión de usuario para confirmación\nreturn {\n  businessLogic: `✅ ¡Billete disponible! Número: ${ticket.ticket_number}, Precio: ${ticket.price}€, ${ticket.is_exclusive ? '⭐ Billete exclusivo para abonados' : '📋 Billete regular'}. ¿Deseas comprarlo? Responde \"sí\" para confirmar o \"no\" para cancelar.`,\n  body: userData,\n  ticket: ticket\n};"
+      },
+      "id": "process-ticket",
+      "name": "Process Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar confirmación de compra\nconst userData = $json.body;\n\n// TODO: Implementar lógica de sesiones\n// Por ahora, respuesta genérica\nreturn {\n  businessLogic: \"No hay ninguna compra pendiente de confirmación. ¿Te gustaría consultar un billete?\",\n  body: userData\n};"
+      },
+      "id": "process-confirmation",
+      "name": "Process Confirmation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar cancelación\nconst userData = $json.body;\n\n// TODO: Implementar lógica de sesiones\nreturn {\n  businessLogic: \"No hay ninguna compra pendiente de cancelación. ¿En qué más puedo ayudarte?\",\n  body: userData\n};"
+      },
+      "id": "process-cancellation",
+      "name": "Process Cancellation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatear respuesta final\nconst deepseekResponse = $json.choices[0].message.content;\n\nreturn {\n  success: true,\n  message: deepseekResponse,\n  usedAI: true,\n  usedDatabase: true,\n  backend: 'n8n',\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "format-response",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatear respuesta general\nconst deepseekResponse = $json.choices[0].message.content;\n\nreturn {\n  success: true,\n  message: deepseekResponse,\n  usedAI: true,\n  usedDatabase: false,\n  backend: 'n8n',\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "format-general-response",
+      "name": "Format General Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 900]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}"
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1780, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Chat": {
+      "main": [
+        [
+          {
+            "node": "Is Ticket Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Ticket Number?": {
+      "main": [
+        [
+          {
+            "node": "Query Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Confirmation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Confirmation?": {
+      "main": [
+        [
+          {
+            "node": "Process Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Cancellation?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Cancellation?": {
+      "main": [
+        [
+          {
+            "node": "Process Cancellation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DeepSeek General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Ticket": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Ticket": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek General": {
+      "main": [
+        [
+          {
+            "node": "Format General Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Confirmation": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Cancellation": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek General",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format General Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}
+

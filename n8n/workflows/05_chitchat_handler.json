@@ -1,0 +1,289 @@
+{
+  "name": "05 - Chitchat Handler (Gestor de Conversación)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-chitchat",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "knowledge_base",
+        "select": "*",
+        "filters": {
+          "filters": [
+            {
+              "column": "is_active",
+              "operator": "eq",
+              "value": true
+            }
+          ]
+        }
+      },
+      "id": "get-knowledge-base",
+      "name": "Get Knowledge Base",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Función para buscar la mejor respuesta en la base de conocimiento\nconst userMessage = $input.first().json.userMessage.toLowerCase();\nconst knowledgeBase = $node['Get Knowledge Base'].json;\n\n// Función para calcular similitud entre strings\nfunction calculateSimilarity(str1, str2) {\n  const words1 = str1.toLowerCase().split(/\\s+/);\n  const words2 = str2.toLowerCase().split(/\\s+/);\n  \n  let matches = 0;\n  for (const word1 of words1) {\n    for (const word2 of words2) {\n      if (word1.includes(word2) || word2.includes(word1)) {\n        matches++;\n        break;\n      }\n    }\n  }\n  \n  return matches / Math.max(words1.length, words2.length);\n}\n\n// Buscar la mejor coincidencia\nlet bestMatch = null;\nlet bestScore = 0;\n\nfor (const entry of knowledgeBase) {\n  // Buscar en keywords\n  const keywords = entry.keywords ? entry.keywords.toLowerCase() : '';\n  const keywordScore = calculateSimilarity(userMessage, keywords);\n  \n  // Buscar en question\n  const question = entry.question ? entry.question.toLowerCase() : '';\n  const questionScore = calculateSimilarity(userMessage, question);\n  \n  // Tomar el mejor score\n  const score = Math.max(keywordScore, questionScore);\n  \n  if (score > bestScore && score > 0.3) { // Umbral mínimo de similitud\n    bestScore = score;\n    bestMatch = entry;\n  }\n}\n\n// Casos especiales para saludos y despedidas\nconst greetings = ['hola', 'hello', 'buenas', 'buenos días', 'buenas tardes', 'buenas noches'];\nconst farewells = ['adiós', 'adios', 'hasta luego', 'chao', 'bye', 'gracias'];\nconst helpRequests = ['ayuda', 'help', 'que puedes hacer', 'opciones', 'no entiendo'];\n\nif (greetings.some(greeting => userMessage.includes(greeting))) {\n  bestMatch = knowledgeBase.find(entry => entry.category === 'saludos');\n  bestScore = 1.0;\n} else if (farewells.some(farewell => userMessage.includes(farewell))) {\n  bestMatch = knowledgeBase.find(entry => entry.category === 'despedidas');\n  bestScore = 1.0;\n} else if (helpRequests.some(help => userMessage.includes(help))) {\n  bestMatch = knowledgeBase.find(entry => entry.category === 'ayuda');\n  bestScore = 1.0;\n}\n\nreturn {\n  bestMatch: bestMatch,\n  bestScore: bestScore,\n  userMessage: userMessage,\n  hasMatch: bestMatch !== null\n};"
+      },
+      "id": "find-best-match",
+      "name": "Find Best Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.hasMatch }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-has-match",
+      "name": "Check Has Match",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "={{ $node['Find Best Match'].json.bestMatch.answer }}"
+      },
+      "id": "send-knowledge-response",
+      "name": "Send Knowledge Response",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [1120, 120],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "🤔 Disculpa, no he entendido tu consulta.\n\n💡 **¿Qué puedo ayudarte?**\n\n🎫 **Consultar billetes:** Envíame un número de 5 dígitos\n📋 **Información:** Pregunta sobre horarios, dirección, precios, etc.\n📞 **Contacto:** +34 900 123 456\n\n**Ejemplos de preguntas:**\n• \"¿Cuáles son los horarios?\"\n• \"¿Dónde están ubicados?\"\n• \"¿Cómo ser abonado?\"\n• \"¿Cuándo son los sorteos?\"\n\n---\nEscribe \"menú\" para ver todas las opciones."
+      },
+      "id": "send-default-response",
+      "name": "Send Default Response",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [1120, 320],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "system_logs",
+        "columns": [
+          {
+            "column": "level",
+            "value": "info"
+          },
+          {
+            "column": "message",
+            "value": "Consulta de chitchat procesada"
+          },
+          {
+            "column": "context",
+            "value": "={{ JSON.stringify({\n  \"user_phone\": $json.userPhone,\n  \"user_message\": $json.userMessage,\n  \"has_match\": $node['Find Best Match'].json.hasMatch,\n  \"best_score\": $node['Find Best Match'].json.bestScore,\n  \"matched_category\": $node['Find Best Match'].json.bestMatch?.category,\n  \"matched_question\": $node['Find Best Match'].json.bestMatch?.question\n}) }}"
+          },
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "workflow_id",
+            "value": "chitchat_handler"
+          }
+        ]
+      },
+      "id": "log-chitchat",
+      "name": "Log Chitchat",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1340, 220],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "user_sessions",
+        "columns": [
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "state",
+            "value": "main_menu"
+          },
+          {
+            "column": "context",
+            "value": "{}"
+          }
+        ]
+      },
+      "id": "reset-session",
+      "name": "Reset Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1560, 220],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "Find Best Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Best Match": {
+      "main": [
+        [
+          {
+            "node": "Check Has Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Has Match": {
+      "main": [
+        [
+          {
+            "node": "Send Knowledge Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Default Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Knowledge Response": {
+      "main": [
+        [
+          {
+            "node": "Log Chitchat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Default Response": {
+      "main": [
+        [
+          {
+            "node": "Log Chitchat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Chitchat": {
+      "main": [
+        [
+          {
+            "node": "Reset Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "05_chitchat_handler",
+  "tags": [
+    {
+      "createdAt": "2025-09-11T22:00:00.000Z",
+      "updatedAt": "2025-09-11T22:00:00.000Z",
+      "id": "main-workflows",
+      "name": "Main Workflows"
+    }
+  ]
+}
+

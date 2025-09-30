@@ -1,0 +1,27 @@
+{
+  "name": "@lottery-chatbot/n8n",
+  "version": "1.0.0",
+  "description": "Configuración y workflows de n8n para el chatbot de lotería",
+  "main": "index.js",
+  "scripts": {
+    "dev": "n8n start --tunnel",
+    "start": "n8n start",
+    "export": "node scripts/export-workflows.js",
+    "import": "node scripts/import-workflows.js",
+    "backup": "node scripts/backup-workflows.js",
+    "setup": "node scripts/setup.js"
+  },
+  "dependencies": {
+    "n8n": "^1.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "n8n": {
+    "credentials": "./credentials",
+    "workflows": "./workflows",
+    "nodes": "./nodes"
+  }
+}
+

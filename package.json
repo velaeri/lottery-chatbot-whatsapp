@@ -1,0 +1,44 @@
+{
+  "name": "lottery-chatbot",
+  "version": "1.0.0",
+  "description": "Chatbot de WhatsApp para tienda de boletos de lotería usando n8n",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run n8n:dev\" \"npm run api:dev\"",
+    "n8n:dev": "cd n8n && npm run dev",
+    "n8n:start": "cd n8n && npm start",
+    "api:dev": "cd api && npm run dev",
+    "api:build": "cd api && npm run build",
+    "db:setup": "cd database && npm run setup",
+    "db:seed": "cd database && npm run seed",
+    "test": "npm run test --workspaces",
+    "build": "npm run build --workspaces",
+    "setup": "npm install && npm run db:setup && npm run db:seed"
+  },
+  "workspaces": [
+    "n8n",
+    "api",
+    "database",
+    "shared"
+  ],
+  "keywords": [
+    "n8n",
+    "whatsapp",
+    "chatbot",
+    "lottery",
+    "supabase",
+    "typescript"
+  ],
+  "author": "Manus AI",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.2.0",
+    "typescript": "^5.0.0",
+    "nodemon": "^3.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.0"
+  }
+}
+

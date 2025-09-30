@@ -1,0 +1,23 @@
+{
+  "name": "@lottery-chatbot/database",
+  "version": "1.0.0",
+  "description": "Scripts y configuración de base de datos para el chatbot de lotería",
+  "main": "index.js",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "reset": "node scripts/reset.js",
+    "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+

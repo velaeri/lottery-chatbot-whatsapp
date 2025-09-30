@@ -1,0 +1,274 @@
+{
+  "name": "Streaming Chat Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chat/stream",
+        "responseMode": "responseNode",
+        "options": {
+          "cors": {
+            "allowedOrigins": "*"
+          }
+        }
+      },
+      "id": "webhook-stream",
+      "name": "Webhook Stream",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "stream-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.message}}",
+              "operation": "regex",
+              "value2": "^\\d{4,5}$"
+            }
+          ]
+        }
+      },
+      "id": "is-ticket-stream",
+      "name": "Is Ticket Number?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://zgttgbdbujrzduqekfmp.supabase.co/rest/v1/lottery_tickets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ticket_number",
+              "value": "eq.={{$json.body.message}}"
+            },
+            {
+              "name": "select",
+              "value": "*"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "query-ticket-stream",
+      "name": "Query Ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "supabase-auth",
+          "name": "Supabase Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres un asistente virtual de 'Lotería El Trébol'. Reformula esta respuesta de manera natural: {{$json.businessLogic}}\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Usuario escribió: {{$json.body.message}}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 500,\n  \"stream\": true\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "stream"
+            }
+          }
+        }
+      },
+      "id": "deepseek-stream",
+      "name": "DeepSeek Stream",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "deepseek-auth",
+          "name": "DeepSeek Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar respuesta de billete para streaming\nconst ticket = $input.all()[0].json[0];\nconst userData = $input.all()[1].json.body;\n\nif (!ticket) {\n  return {\n    businessLogic: `❌ Lo siento, el billete ${userData.message} no existe en nuestro sistema. Prueba con números como: 10000, 10090, 10115, 10190, etc. ¿Te gustaría consultar otro número?`,\n    body: userData\n  };\n}\n\nif (ticket.status === 'sold') {\n  return {\n    businessLogic: `❌ El billete ${ticket.ticket_number} ya ha sido vendido. ¿Te gustaría consultar otro número disponible?`,\n    body: userData\n  };\n}\n\nif (ticket.status === 'reserved') {\n  return {\n    businessLogic: `⏳ El billete ${ticket.ticket_number} está temporalmente reservado. ¿Te gustaría consultar otro número?`,\n    body: userData\n  };\n}\n\nif (ticket.is_exclusive && !userData.isSubscriber) {\n  return {\n    businessLogic: `🔒 El billete ${ticket.ticket_number} es exclusivo para abonados. Precio: ${ticket.price}€. Para ser abonado, visita nuestra oficina con tu DNI. La suscripción cuesta 20€ anuales. ¿Te gustaría consultar billetes regulares disponibles?`,\n    body: userData\n  };\n}\n\nreturn {\n  businessLogic: `✅ ¡Billete disponible! Número: ${ticket.ticket_number}, Precio: ${ticket.price}€, ${ticket.is_exclusive ? '⭐ Billete exclusivo para abonados' : '📋 Billete regular'}. ¿Deseas comprarlo? Responde \"sí\" para confirmar o \"no\" para cancelar.`,\n  body: userData,\n  ticket: ticket\n};"
+      },
+      "id": "process-ticket-stream",
+      "name": "Process Ticket Stream",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://api.deepseek.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-chat\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Eres un asistente virtual de 'Lotería El Trébol', una tienda de billetes de lotería en España. Información: Horario L-V 9:00-18:00, S 9:00-14:00. Ubicación: Calle Principal 123, Madrid. Sorteos: Sábados 20:00. Suscripción abonados: 20€ anuales. Usuario: {{$json.body.isSubscriber ? 'Abonado' : 'Regular'}}. Sé amigable, usa emojis, mantén respuestas concisas.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{$json.body.message}}\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 500,\n  \"stream\": true\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "stream"
+            }
+          }
+        }
+      },
+      "id": "deepseek-general-stream",
+      "name": "DeepSeek General Stream",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 400],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "deepseek-auth",
+          "name": "DeepSeek Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar stream de DeepSeek\nconst streamData = $json;\n\n// Simular streaming palabra por palabra\n// En n8n real, esto se manejaría diferente\nconst response = streamData.choices?.[0]?.delta?.content || streamData.choices?.[0]?.message?.content || 'Respuesta de streaming';\n\nreturn {\n  streamChunk: response\n};"
+      },
+      "id": "process-stream",
+      "name": "Process Stream",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{$json.streamChunk}}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=utf-8"
+              },
+              {
+                "name": "Transfer-Encoding",
+                "value": "chunked"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-cache"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-stream",
+      "name": "Respond Stream",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Stream": {
+      "main": [
+        [
+          {
+            "node": "Is Ticket Number?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Ticket Number?": {
+      "main": [
+        [
+          {
+            "node": "Query Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "DeepSeek General Stream",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Ticket": {
+      "main": [
+        [
+          {
+            "node": "Process Ticket Stream",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Ticket Stream": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek Stream",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Stream": {
+      "main": [
+        [
+          {
+            "node": "Process Stream",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek General Stream": {
+      "main": [
+        [
+          {
+            "node": "Process Stream",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Stream": {
+      "main": [
+        [
+          {
+            "node": "Respond Stream",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {},
+  "versionId": "1"
+}
+

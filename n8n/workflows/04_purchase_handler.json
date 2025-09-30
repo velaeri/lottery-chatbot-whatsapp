@@ -1,0 +1,524 @@
+{
+  "name": "04 - Purchase Handler (Gestor de Compras)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-purchase",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "user_sessions",
+        "select": "*",
+        "filters": {
+          "filters": [
+            {
+              "column": "user_phone",
+              "operator": "eq",
+              "value": "={{ $json.userPhone }}"
+            }
+          ]
+        }
+      },
+      "id": "get-session-context",
+      "name": "Get Session Context",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "sí",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "si",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "confirmar",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "comprar",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combineOperation": "any"
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-confirmation",
+      "name": "Check Confirmation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "no",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "cancelar",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $json.userMessage }}",
+              "rightValue": "cancel",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combineOperation": "any"
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-cancellation",
+      "name": "Check Cancellation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "table": "lottery_tickets",
+        "filters": {
+          "filters": [
+            {
+              "column": "id",
+              "operator": "eq",
+              "value": "={{ JSON.parse($node['Get Session Context'].json[0].context).ticket_id }}"
+            }
+          ]
+        },
+        "columns": [
+          {
+            "column": "status",
+            "value": "reserved"
+          }
+        ]
+      },
+      "id": "reserve-ticket",
+      "name": "Reserve Ticket",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [900, 120],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "orders",
+        "columns": [
+          {
+            "column": "ticket_id",
+            "value": "={{ JSON.parse($node['Get Session Context'].json[0].context).ticket_id }}"
+          },
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "status",
+            "value": "pending_review"
+          },
+          {
+            "column": "notes",
+            "value": "Solicitud automática desde chatbot WhatsApp"
+          }
+        ]
+      },
+      "id": "create-order",
+      "name": "Create Order",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1120, 120],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "user_sessions",
+        "columns": [
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "state",
+            "value": "main_menu"
+          },
+          {
+            "column": "context",
+            "value": "{}"
+          }
+        ]
+      },
+      "id": "reset-session-confirmed",
+      "name": "Reset Session (Confirmed)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1340, 120],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "user_sessions",
+        "columns": [
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "state",
+            "value": "main_menu"
+          },
+          {
+            "column": "context",
+            "value": "{}"
+          }
+        ]
+      },
+      "id": "reset-session-cancelled",
+      "name": "Reset Session (Cancelled)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [900, 320],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "🎉 ¡Perfecto! Tu solicitud ha sido procesada.\n\n📋 **Detalles de tu solicitud:**\n🎫 Número: **{{ JSON.parse($node['Get Session Context'].json[0].context).ticket_number }}**\n💰 Precio: **{{ JSON.parse($node['Get Session Context'].json[0].context).ticket_price }}€**\n📞 Teléfono: {{ $json.userPhone }}\n\n⏳ **Próximos pasos:**\n1. Hemos reservado temporalmente tu billete\n2. Un operador revisará tu solicitud\n3. Te contactaremos pronto para finalizar la compra\n\n📞 Si tienes dudas, llámanos al **+34 900 123 456**\n\n---\n¡Gracias por elegir Lotería XYZ! 🍀"
+      },
+      "id": "send-confirmation-message",
+      "name": "Send Confirmation Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [1560, 120],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "❌ Solicitud cancelada.\n\nNo hay problema, puedes consultar otros números cuando quieras.\n\n¿Te gustaría:\n🎫 Consultar otro número de billete\n📋 Ver el menú principal\n\n---\nEscribe \"menú\" para volver al inicio."
+      },
+      "id": "send-cancellation-message",
+      "name": "Send Cancellation Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [1120, 320],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "🤔 No he entendido tu respuesta.\n\nPara el billete **{{ JSON.parse($node['Get Session Context'].json[0].context).ticket_number }}** ({{ JSON.parse($node['Get Session Context'].json[0].context).ticket_price }}€):\n\n✅ Responde **\"sí\"** para confirmar la compra\n❌ Responde **\"no\"** para cancelar\n\n---\nO escribe \"menú\" para volver al inicio."
+      },
+      "id": "send-clarification-message",
+      "name": "Send Clarification Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [900, 520],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "system_logs",
+        "columns": [
+          {
+            "column": "level",
+            "value": "info"
+          },
+          {
+            "column": "message",
+            "value": "Procesamiento de compra completado"
+          },
+          {
+            "column": "context",
+            "value": "={{ JSON.stringify({\n  \"user_phone\": $json.userPhone,\n  \"ticket_number\": JSON.parse($node['Get Session Context'].json[0].context).ticket_number,\n  \"ticket_price\": JSON.parse($node['Get Session Context'].json[0].context).ticket_price,\n  \"action\": $node['Check Confirmation'].json ? 'confirmed' : ($node['Check Cancellation'].json ? 'cancelled' : 'clarification_needed'),\n  \"order_id\": $node['Create Order']?.json?.[0]?.id\n}) }}"
+          },
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "workflow_id",
+            "value": "purchase_handler"
+          }
+        ]
+      },
+      "id": "log-purchase-processing",
+      "name": "Log Purchase Processing",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1780, 320],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Get Session Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session Context": {
+      "main": [
+        [
+          {
+            "node": "Check Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Reserve Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Cancellation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Cancellation": {
+      "main": [
+        [
+          {
+            "node": "Reset Session (Cancelled)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Clarification Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reserve Ticket": {
+      "main": [
+        [
+          {
+            "node": "Create Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Order": {
+      "main": [
+        [
+          {
+            "node": "Reset Session (Confirmed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Session (Confirmed)": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reset Session (Cancelled)": {
+      "main": [
+        [
+          {
+            "node": "Send Cancellation Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation Message": {
+      "main": [
+        [
+          {
+            "node": "Log Purchase Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cancellation Message": {
+      "main": [
+        [
+          {
+            "node": "Log Purchase Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Clarification Message": {
+      "main": [
+        [
+          {
+            "node": "Log Purchase Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "04_purchase_handler",
+  "tags": [
+    {
+      "createdAt": "2025-09-11T22:00:00.000Z",
+      "updatedAt": "2025-09-11T22:00:00.000Z",
+      "id": "main-workflows",
+      "name": "Main Workflows"
+    }
+  ]
+}
+

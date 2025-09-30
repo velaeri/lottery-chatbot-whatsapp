@@ -1,0 +1,29 @@
+{
+  "name": "@lottery-chatbot/scripts",
+  "version": "1.0.0",
+  "description": "Scripts de inicialización y utilidades para el chatbot de lotería",
+  "main": "index.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "init-all": "node init-all.js",
+    "test-system": "node test-system.js",
+    "generate-data": "node generate-data.js",
+    "validate-config": "node validate-config.js",
+    "health-check": "node health-check.js",
+    "backup-system": "node backup-system.js",
+    "deploy-check": "node deploy-check.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.0",
+    "dotenv": "^16.3.0",
+    "chalk": "^4.1.2",
+    "inquirer": "^8.2.0",
+    "ora": "^5.4.1",
+    "axios": "^1.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/inquirer": "^8.2.0"
+  }
+}
+

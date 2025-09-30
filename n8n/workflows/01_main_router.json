@@ -1,0 +1,425 @@
+{
+  "name": "01 - Main Router (Enrutador Principal)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "options": {}
+      },
+      "id": "webhook-whatsapp",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "lottery-chatbot-webhook"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "userPhone",
+              "value": "={{ $json.body.entry[0].changes[0].value.contacts[0].wa_id }}"
+            },
+            {
+              "name": "userMessage",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].text.body.toLowerCase().trim() }}"
+            },
+            {
+              "name": "messageId",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].id }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $json.body.entry[0].changes[0].value.messages[0].timestamp }}"
+            },
+            {
+              "name": "userName",
+              "value": "={{ $json.body.entry[0].changes[0].value.contacts[0].profile.name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-data",
+      "name": "Extract Message Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "user_sessions",
+        "select": "*",
+        "filters": {
+          "filters": [
+            {
+              "column": "user_phone",
+              "operator": "eq",
+              "value": "={{ $node['Extract Message Data'].json.userPhone }}"
+            }
+          ]
+        }
+      },
+      "id": "get-user-session",
+      "name": "Get User Session",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [680, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['Extract Message Data'].json.userMessage }}",
+              "rightValue": "menú",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $node['Extract Message Data'].json.userMessage }}",
+              "rightValue": "menu",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $node['Extract Message Data'].json.userMessage }}",
+              "rightValue": "inicio",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "leftValue": "={{ $node['Extract Message Data'].json.userMessage }}",
+              "rightValue": "hola",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combineOperation": "any"
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-menu-commands",
+      "name": "Check Menu Commands",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['Extract Message Data'].json.userMessage }}",
+              "rightValue": "^\\d{5}$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-ticket-number",
+      "name": "Check Ticket Number",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['Get User Session'].json[0]?.state }}",
+              "rightValue": "awaiting_purchase_confirmation",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-purchase-confirmation",
+      "name": "Check Purchase Confirmation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 600]
+    },
+    {
+      "parameters": {
+        "workflowId": "02_menu_handler"
+      },
+      "id": "execute-menu-workflow",
+      "name": "Execute Menu Workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1120, 120]
+    },
+    {
+      "parameters": {
+        "workflowId": "03_ticket_availability"
+      },
+      "id": "execute-ticket-workflow",
+      "name": "Execute Ticket Workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1120, 320]
+    },
+    {
+      "parameters": {
+        "workflowId": "04_purchase_handler"
+      },
+      "id": "execute-purchase-workflow",
+      "name": "Execute Purchase Workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1120, 520]
+    },
+    {
+      "parameters": {
+        "workflowId": "05_chitchat_handler"
+      },
+      "id": "execute-chitchat-workflow",
+      "name": "Execute Chitchat Workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1120, 720]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "system_logs",
+        "columns": [
+          {
+            "column": "level",
+            "value": "info"
+          },
+          {
+            "column": "message",
+            "value": "Mensaje procesado por enrutador principal"
+          },
+          {
+            "column": "context",
+            "value": "={{ JSON.stringify({\n  \"user_phone\": $node['Extract Message Data'].json.userPhone,\n  \"message\": $node['Extract Message Data'].json.userMessage,\n  \"session_state\": $node['Get User Session'].json[0]?.state || 'new',\n  \"route_taken\": \"unknown\"\n}) }}"
+          },
+          {
+            "column": "user_phone",
+            "value": "={{ $node['Extract Message Data'].json.userPhone }}"
+          },
+          {
+            "column": "workflow_id",
+            "value": "main_router"
+          }
+        ]
+      },
+      "id": "log-message",
+      "name": "Log Message Processing",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1340, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Message Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message Data": {
+      "main": [
+        [
+          {
+            "node": "Get User Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User Session": {
+      "main": [
+        [
+          {
+            "node": "Check Menu Commands",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Ticket Number",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Purchase Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Menu Commands": {
+      "main": [
+        [
+          {
+            "node": "Execute Menu Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Ticket Number",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Ticket Number": {
+      "main": [
+        [
+          {
+            "node": "Execute Ticket Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Purchase Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Purchase Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Execute Purchase Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Execute Chitchat Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Menu Workflow": {
+      "main": [
+        [
+          {
+            "node": "Log Message Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Ticket Workflow": {
+      "main": [
+        [
+          {
+            "node": "Log Message Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Purchase Workflow": {
+      "main": [
+        [
+          {
+            "node": "Log Message Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Chitchat Workflow": {
+      "main": [
+        [
+          {
+            "node": "Log Message Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "01_main_router",
+  "tags": [
+    {
+      "createdAt": "2025-09-11T22:00:00.000Z",
+      "updatedAt": "2025-09-11T22:00:00.000Z",
+      "id": "main-workflows",
+      "name": "Main Workflows"
+    }
+  ]
+}
+

@@ -1,0 +1,506 @@
+{
+  "name": "03 - Ticket Availability (Consulta de Disponibilidad)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-ticket-check",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "lottery_tickets",
+        "select": "*",
+        "filters": {
+          "filters": [
+            {
+              "column": "ticket_number",
+              "operator": "eq",
+              "value": "={{ $json.userMessage }}"
+            }
+          ]
+        }
+      },
+      "id": "find-ticket",
+      "name": "Find Ticket",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['Find Ticket'].json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-ticket-exists",
+      "name": "Check Ticket Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['Find Ticket'].json[0].status }}",
+              "rightValue": "available",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-ticket-available",
+      "name": "Check Ticket Available",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['Find Ticket'].json[0].is_exclusive }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-exclusive-ticket",
+      "name": "Check Exclusive Ticket",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [680, 600]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "subscribers",
+        "select": "*",
+        "filters": {
+          "filters": [
+            {
+              "column": "phone_number",
+              "operator": "eq",
+              "value": "={{ $json.userPhone }}"
+            },
+            {
+              "column": "status",
+              "operator": "eq",
+              "value": "active"
+            }
+          ]
+        }
+      },
+      "id": "check-subscriber",
+      "name": "Check Subscriber",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [900, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $node['Check Subscriber'].json.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "check-is-subscriber",
+      "name": "Check Is Subscriber",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1120, 500]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "❌ El número **{{ $json.userMessage }}** no parece ser un billete válido.\n\n💡 Por favor, verifica el número e inténtalo de nuevo.\n\n---\nEscribe \"menú\" para volver al inicio."
+      },
+      "id": "send-not-found",
+      "name": "Send Not Found",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [900, 100],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "😔 Lo sentimos, el número **{{ $json.userMessage }}** ya no está disponible.\n\n{{ $node['Find Ticket'].json[0].status === 'sold' ? '🔴 Este billete ya ha sido vendido.' : '🟡 Este billete está reservado temporalmente.' }}\n\n¿Te gustaría consultar otro número?\n\n---\nEscribe \"menú\" para volver al inicio."
+      },
+      "id": "send-not-available",
+      "name": "Send Not Available",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "🔒 El número **{{ $json.userMessage }}** es exclusivo para abonados.\n\n✨ ¡Considera unirte a nuestro club de abonados para acceder a números exclusivos con mejores premios!\n\n📞 Llámanos al **+34 900 123 456** para más información.\n\n---\nEscribe \"menú\" para volver al inicio."
+      },
+      "id": "send-exclusive-denied",
+      "name": "Send Exclusive Denied",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [1340, 400],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "user_sessions",
+        "columns": [
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "state",
+            "value": "awaiting_purchase_confirmation"
+          },
+          {
+            "column": "context",
+            "value": "={{ JSON.stringify({\n  \"ticket_number\": $json.userMessage,\n  \"ticket_id\": $node['Find Ticket'].json[0].id,\n  \"ticket_price\": $node['Find Ticket'].json[0].price,\n  \"is_exclusive\": $node['Find Ticket'].json[0].is_exclusive\n}) }}"
+          }
+        ]
+      },
+      "id": "update-session-purchase",
+      "name": "Update Session for Purchase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1340, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "recipientPhoneNumber": "={{ $json.userPhone }}",
+        "message": "✅ ¡Buenas noticias! El número **{{ $json.userMessage }}** está disponible.\n\n💰 **Precio:** {{ $node['Find Ticket'].json[0].price }}€\n{{ $node['Find Ticket'].json[0].is_exclusive ? '⭐ **Billete exclusivo para abonados**' : '🎫 **Billete regular**' }}\n\n¿Deseas solicitar su compra?\n\n✅ Responde **\"sí\"** para confirmar\n❌ Responde **\"no\"** para cancelar\n\n---\n💡 *Al confirmar, un operador procesará tu solicitud y te contactará para finalizar la compra.*"
+      },
+      "id": "send-available-confirmation",
+      "name": "Send Available Confirmation",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [1560, 600],
+      "credentials": {
+        "whatsAppApi": {
+          "id": "whatsapp-business-api",
+          "name": "WhatsApp Business API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "system_logs",
+        "columns": [
+          {
+            "column": "level",
+            "value": "info"
+          },
+          {
+            "column": "message",
+            "value": "Consulta de disponibilidad de billete procesada"
+          },
+          {
+            "column": "context",
+            "value": "={{ JSON.stringify({\n  \"user_phone\": $json.userPhone,\n  \"ticket_number\": $json.userMessage,\n  \"result\": $node['Find Ticket'].json.length > 0 ? (\n    $node['Find Ticket'].json[0].status === 'available' ? \n      ($node['Find Ticket'].json[0].is_exclusive ? \n        ($node['Check Subscriber']?.json?.length > 0 ? 'available_exclusive_subscriber' : 'denied_exclusive_non_subscriber') \n        : 'available_regular'\n      ) \n      : 'not_available'\n  ) : 'not_found',\n  \"ticket_price\": $node['Find Ticket'].json[0]?.price,\n  \"is_exclusive\": $node['Find Ticket'].json[0]?.is_exclusive\n}) }}"
+          },
+          {
+            "column": "user_phone",
+            "value": "={{ $json.userPhone }}"
+          },
+          {
+            "column": "workflow_id",
+            "value": "ticket_availability"
+          }
+        ]
+      },
+      "id": "log-availability-check",
+      "name": "Log Availability Check",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1.2,
+      "position": [1780, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-lottery-db",
+          "name": "Supabase Lottery DB"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Find Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Ticket": {
+      "main": [
+        [
+          {
+            "node": "Check Ticket Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Ticket Exists": {
+      "main": [
+        [
+          {
+            "node": "Send Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Ticket Available",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Ticket Available": {
+      "main": [
+        [
+          {
+            "node": "Send Not Available",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Exclusive Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Exclusive Ticket": {
+      "main": [
+        [
+          {
+            "node": "Check Subscriber",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Session for Purchase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Subscriber": {
+      "main": [
+        [
+          {
+            "node": "Check Is Subscriber",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Is Subscriber": {
+      "main": [
+        [
+          {
+            "node": "Send Exclusive Denied",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Session for Purchase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Not Found": {
+      "main": [
+        [
+          {
+            "node": "Log Availability Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Not Available": {
+      "main": [
+        [
+          {
+            "node": "Log Availability Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Exclusive Denied": {
+      "main": [
+        [
+          {
+            "node": "Log Availability Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Session for Purchase": {
+      "main": [
+        [
+          {
+            "node": "Send Available Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Available Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Log Availability Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "03_ticket_availability",
+  "tags": [
+    {
+      "createdAt": "2025-09-11T22:00:00.000Z",
+      "updatedAt": "2025-09-11T22:00:00.000Z",
+      "id": "main-workflows",
+      "name": "Main Workflows"
+    }
+  ]
+}
+
